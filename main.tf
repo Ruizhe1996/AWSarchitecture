@@ -42,6 +42,8 @@ resource "aws_route_table" "Public-routetable" {
   }
 }
 
+#Nat-gateway for private subnet to access internet 
+
 resource "aws_route_table" "Natgateway-route" {
   vpc_id = aws_vpc.main.id
 
@@ -53,6 +55,17 @@ resource "aws_route_table" "Natgateway-route" {
   tags = {
     Name = "Private-natgateway-routetable"
   }
+}
+
+#For subnet-a to be able to connect to S3 without going through internet
+
+resource "aws_route_table" "s3-private-connection" {
+    vpc_id = aws_vpc.main.id
+
+    route {
+        cidr_block = "0.0.0.0/0"
+        vpc_endpoint_id = "aws_vpc_endpoint.s3"
+    }
 }
 
 #Creating 4 Subnets, 2 Private Subnets and 2 Public Subnets
@@ -114,7 +127,12 @@ resource "aws_route_table_association" "private-natgateway" {
   route_table_id = aws_route_table.Natgateway-route.id
 }
 
-#Creation of EIP 
+resource "aws_route_table_association" "private-s3" {
+  subnet_id       = aws_subnet.private-a.id
+  route_table_id = aws_route_table.s3-private-connection.id
+}
+
+#Creation of EIP for my natgateway
 
 resource "aws_eip" "one" {
   domain                    = "vpc"
@@ -132,3 +150,14 @@ resource "aws_nat_gateway" "Natgateway-a" {
   }
   depends_on = [aws_internet_gateway.gw]
 }
+
+
+#Creating a VPC endpoint so that my S3 can communicate with my private subnet within AWS without going to the internet
+
+resource "aws_vpc_endpoint" "s3" {
+    vpc_id = aws_vpc.main.id
+    service_name = "com.amazonaws.ap-southeast-1.s3"
+    #Service name usually com.amazonaws.{region}.{service_name}
+    vpc_endpoint_type = "Interface"
+}
+
